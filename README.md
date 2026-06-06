@@ -1,175 +1,160 @@
-🛡️ Windows Credential Harvesting Lab (SSP Injection)
-This project demonstrates how attackers can intercept Windows credentials during the logon process using Mimikatz SSP injection, and how defenders can detect this activity using Sysmon and basic artifact analysis.
-All testing was performed safely in an isolated virtual machine.
+# Windows Credential Extraction & Credential Harvesting Simulation (Lab Project)
 
-✅ Prerequisites
-Before running this lab, ensure you have:
+> **Educational / Lab Use Only**  
+> This project demonstrates how Windows stores authentication material, how those artifacts can be extracted for analysis, and ends with a safe credential‑harvesting simulation using the Mimikatz SSP module (`mimilsa.dll`).
 
-🖥️ Windows Virtual Machine
-Windows 10 or Windows 11
-Local Administrator privileges
-Internet access (optional, for downloading tools)
+---
 
-👤 Multiple Local Test Accounts
-Create at least 2–3 standard users, such as:
+## 📌 Project Summary
 
-test1
+This lab focuses on two phases:
 
-test2
+1. **Credential Artifact Extraction**
+   - LSASS memory dump  
+   - SAM / SECURITY / SYSTEM hive extraction  
+   - DPAPI masterkeys  
+   - LSA Secrets  
 
-test3
+2. **Credential Harvesting Simulation**
+   - Deploying `mimilsa.dll` as a Security Support Provider  
+   - Capturing credentials typed at logon  
+   - Reviewing the generated `mimilsa.log` file  
 
-These accounts are used to simulate victim logons.
+This README outlines the **pseudo step‑by‑step workflow** used in the project.
 
-🔧 Mimikatz
-Latest release from the official GitHub
+---
 
-Must be run as Administrator
+## 🧩 1. Environment Setup (Pseudo Steps)
 
-Used for SSP injection (misc::memssp)
+1. Create an isolated Windows 10/11 VM.  
+2. Create two accounts:  
+   - `labadmin` (Administrator)  
+   - `labuser1` (Standard user)  
+3. Place tools in `C:\Tools` (Mimikatz, Sysinternals, etc.).  
+4. Take a snapshot named **Baseline**.
 
-📄 Sysmon Installed
-Sysmon from Microsoft Sysinternals
+---
 
-Basic Sysmon configuration file (XML)
+## 🔍 2. Credential Artifact Extraction
 
-Used to observe process creation and system activity
+### 2.1 LSASS Memory Dump
 
-📂 Access to System Tools
-You will need:
+1. Open an elevated command prompt.  
+2. Use a memory dump tool (e.g., ProcDump).  
+3. Dump LSASS to:  
+   - `C:\Tools\Evidence\lsass.dmp`  
+4. Confirm the dump file was created.
 
-File Explorer (to locate mimilsa.log)
+### 2.2 Registry Hive Extraction
 
-Event Viewer (to review Sysmon logs)
+1. Open elevated PowerShell.  
+2. Export the following hives:  
+   - `SAM`  
+   - `SECURITY`  
+   - `SYSTEM`  
+3. Save them into your evidence folder.
 
-🛡️ Isolated Lab Environment
-This lab must be performed in:
+### 2.3 DPAPI Artifacts
 
-A VM
+1. Navigate to:  
+   - `C:\Users\labuser1\AppData\Roaming\Microsoft\Protect`  
+2. Copy DPAPI masterkeys + related files.
 
-A sandbox
+### 2.4 Credential Manager / Vault (Optional)
 
-A non‑production environment
+1. Open Credential Manager.  
+2. Create a few test credentials (optional).  
+3. Copy Vault/cred files if needed.
 
-Never run credential‑harvesting tools on a real machine.
+---
 
-🛠️ Installing Sysmon (Optional Setup Instructions)
-If you want to reproduce this lab from scratch:
+## 🧪 3. Artifact Analysis
 
-Download Sysmon from Microsoft Sysinternals
+### 3.1 LSASS Dump Analysis
 
-Extract the ZIP
+1. Load `lsass.dmp` into Mimikatz.  
+2. Run credential extraction modules (pseudo):  
+   - NTLM hashes  
+   - Cleartext credentials (if available)  
+   - Kerberos tickets  
+3. Document findings.
 
-Install Sysmon with a basic config:
+### 3.2 Hive Analysis
 
-Code
-sysmon64.exe -i sysmonconfig.xml
-Confirm it’s running:
+1. Load `SAM`, `SECURITY`, and `SYSTEM` hives into Mimikatz or hive‑parsing tools.  
+2. Extract:  
+   - Local account password hashes  
+   - LSA Secrets  
+3. Compare results with known test accounts.
 
-Code
-sc query sysmon64
-Sysmon will now begin logging system activity.
+### 3.3 DPAPI Analysis
 
-🚀 Lab Instructions
-1. Run Mimikatz with Debug Privileges
-Open an elevated command prompt and run:
+1. Use DPAPI modules to attempt decryption.  
+2. Identify any decryptable secrets.  
+3. Document results.
 
-Code
-privilege::debug
-You should see:
-Privilege '20' OK
+---
 
-2. Inject the Malicious SSP
-Load the in‑memory SSP using:
+## 🎯 4. Credential Harvesting Simulation (Attack Phase)
 
-Code
-misc::memssp
-If successful, Mimikatz will return:
-Injected =)
+This phase simulates an attacker loading a malicious SSP to capture credentials at logon.
 
-This creates a malicious Security Support Provider that logs credentials during authentication.
+### 4.1 Deploy `mimilsa.dll`
 
-3. Trigger a Logon Event
-Switch to another user account (e.g., test1) and log in normally.
-This generates credential artifacts captured by the injected SSP.
+1. Copy `mimilsa.dll` from the Mimikatz release into:  
+   - `C:\Windows\System32\`  
+2. Confirm the file exists.
 
-4. Locate the Harvested Credentials
-Navigate to:
+### 4.2 Register the SSP
 
-Code
-C:\Windows\System32\
-Look for:
+1. Open Registry Editor as Administrator.  
+2. Navigate to:  
+   - `HKLM\SYSTEM\CurrentControlSet\Control\Lsa`  
+3. Edit the `Security Packages` (REG_MULTI_SZ) value.  
+4. Add a new line:  
+   - `mimilsa`  
+5. Close Registry Editor.
 
-Code
-mimilsa.log
-This file contains the captured credential information.
-Sanitize before sharing.
+### 4.3 Reboot & Generate Credentials
 
-5. Analyze System Activity with Sysmon
-Open Event Viewer:
+1. Reboot the VM to load the SSP.  
+2. Log in as `labuser1` (victim user).  
+3. Log out.  
+4. Log in as `labadmin` (analyst).  
+5. Optional: Perform additional logon actions (`runas`, RDP, etc.).
 
-Code
-Applications and Services Logs → Microsoft → Windows → Sysmon → Operational
-Look for:
+### 4.4 Retrieve Harvested Credentials
 
-Process creation events
+1. Navigate to the generated log file:  
+   - `C:\Windows\System32\mimilsa.log`  
+2. Copy the file to your evidence folder.  
+3. Review captured credentials:  
+   - Username  
+   - Domain  
+   - Cleartext password  
 
-File creation/modification
+---
 
-Activity around the time of the logon
+## 🛡️ 5. Defensive Considerations (High-Level)
 
-This helps you understand how defenders detect suspicious authentication behavior.
+- Enable **Credential Guard**  
+- Enable **LSA Protection (RunAsPPL)**  
+- Restrict LSASS access  
+- Disable LLMNR / NetBIOS  
+- Enforce MFA  
+- Deploy Sysmon + SIEM correlation  
+- Monitor registry changes under `Lsa`  
+- Monitor DLL loads into LSASS  
 
-🧠 What This Lab Teaches
-How SSP‑based credential harvesting works
+---
 
-How Mimikatz performs SSP injection
+## 🚀 6. Summary
 
-Where Windows stores authentication artifacts
+This project demonstrates:
 
-How Sysmon provides forensic visibility
+- How Windows stores and protects credentials  
+- How attackers extract authentication material  
+- How SSP‑based credential harvesting works using `mimilsa.dll`  
+- How defenders can detect and mitigate these techniques  
 
-How attackers and defenders think about credential theft
-
-📁 Files & Artifacts
-File	Description
-mimilsa.log	Log file generated by the injected SSP containing captured credential data (sanitized)
-Screenshots	Mimikatz output, Sysmon events, login simulation
-Notes	Observations and takeaways from the lab
-
-
-📸 Screenshots Included
-Mimikatz SSP injection
-
-Sanitized mimilsa.log
-
-Sysmon event logs
-
-Windows login simulation
-
-🔒 Why This Matters
-Credential theft is one of the most common attack techniques used in real‑world intrusions.
-Understanding how credentials are intercepted, where artifacts appear, and how to detect them is essential for anyone entering cybersecurity.
-
-This project builds foundational skills in:
-
-Windows internals
-
-Authentication flows
-
-Forensics
-
-Detection engineering
-
-Adversary simulation
-
-🔭 Future Improvements
-Planned enhancements include:
-
-Hardening authentication settings
-
-Monitoring for unauthorized SSP changes
-
-Adding basic detection rules for suspicious logon activity
-
-Expanding Sysmon configuration for deeper visibility
+The project ends with a working credential harvesting simulation and analysis of the extracted artifacts.
